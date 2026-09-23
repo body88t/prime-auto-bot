@@ -54,4 +54,4 @@ RUN mkdir -p storage/baileys_auth storage/waybills storage/receipts logs prisma 
 EXPOSE 3000 8080 7860
 
 # Apply migrations to Database (PostgreSQL / SQLite) and start server
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/server.js"]
+CMD ["sh", "-c", "export DATABASE_URL=\"${DATABASE_URL:-${POSTGRES_CONNECTION_STRING:-${POSTGRES_URI}}}\" && npx prisma db push --skip-generate && node dist/server.js"]

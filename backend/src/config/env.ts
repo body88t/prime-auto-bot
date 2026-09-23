@@ -7,7 +7,11 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   publicServerUrl: process.env.PUBLIC_SERVER_URL || 'http://localhost:3000',
-  databaseUrl: process.env.DATABASE_URL || 'file:./dev.db',
+  databaseUrl:
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_CONNECTION_STRING ||
+    process.env.POSTGRES_URI ||
+    'file:./dev.db',
   
   // Security
   internalSmsSyncKey: process.env.INTERNAL_SMS_SYNC_KEY || 'prime_sms_secret_token_8899aabbcc',
