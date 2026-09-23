@@ -1,0 +1,28 @@
+{
+  "name": "prime-auto-bot",
+  "version": "1.0.0",
+  "description": "Autonomous End-to-End E-Commerce Automation & Payment Verification System",
+  "scripts": {
+    "dev": "npm --prefix backend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:desktop": "npm --prefix desktop_dashboard run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:desktop": "npm --prefix desktop_dashboard run build",
+    "build:all": "npm --prefix backend run build && npm --prefix desktop_dashboard run build",
+    "test:backend": "npm --prefix backend test",
+    "prisma:generate": "npm --prefix backend run prisma:generate",
+    "prisma:push": "npm --prefix backend run prisma:push",
+    "seed": "npm --prefix backend run seed"
+  },
+  "keywords": [
+    "ecommerce",
+    "automation",
+    "wuilt",
+    "whatsapp",
+    "payment-verification",
+    "vodafone-cash",
+    "instapay"
+  ],
+  "author": "",
+  "license": "ISC"
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+logs
+storage
+prisma/dev.db
+*.db
+.env
+.git
+.gitignore
+tests

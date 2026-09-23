@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: prime-auto-bot
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        value: "file:./dev.db"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: "/usr/bin/chromium"
+      - key: INTERNAL_SMS_SYNC_KEY
+        value: prime_sms_secret_token_8899aabbcc
+      - key: DEPOSIT_THRESHOLD_EGP
+        value: "190"
+      - key: TARGET_DEPOSIT_EGP
+        value: "200"
+      - key: MATCHING_WINDOW_MINUTES
+        value: "30"
+      - key: SUPPRESSED_PHONES
+        value: ""
+      - key: SUPPRESSED_ORDERS
+        value: ""

@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id              String        @id @default(uuid())
+  wuiltOrderId    String        @unique
+  customerName    String
+  customerPhone   String
+  orderTotal      Float
+  depositPaid     Float         @default(0.0)
+  remainingTotal  Float
+  status          String        @default("PENDING_PAYMENT") // PENDING_PAYMENT, PARTIAL_DEPOSIT, CONFIRMED, CANCELLED, FAILED_VERIFICATION
+  shippingAddress String?
+  itemsJson       String?       // JSON representation of ordered items
+  waybillUrl      String?       // PNG screenshot or PDF URL
+  waybillPdfUrl   String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  receiptScans    ReceiptScan[]
+  consumedSms     IncomingSms[]
+
+  @@index([customerPhone])
+  @@index([status])
+  @@index([wuiltOrderId])
+}
+
+model IncomingSms {
+  id                String    @id @default(uuid())
+  sender            String    // e.g. "VF-Cash", "InstaPay", "OrangeCash", "CIB"
+  rawMessage        String
+  amount            Float
+  referenceId       String?   // Extracted transaction reference or sequence number
+  receivedAt        DateTime  @default(now())
+  isConsumed        Boolean   @default(false)
+  consumedByOrderId String?
+  consumedByOrder   Order?    @relation(fields: [consumedByOrderId], references: [id])
+  createdAt         DateTime  @default(now())
+
+  @@index([isConsumed])
+  @@index([referenceId])
+  @@index([receivedAt])
+}
+
+model ReceiptScan {
+  id                 String    @id @default(uuid())
+  orderId            String?
+  order              Order?    @relation(fields: [orderId], references: [id])
+  imageUrl           String
+  detectedAmount     Float
+  detectedRefId      String?
+  detectedDate       String?
+  detectedWallet     String?
+  confidenceScore    Float     @default(1.0)
+  status             String    @default("PENDING") // MATCHED, FAILED_VERIFICATION, LOW_DEPOSIT
+  rawVisionResponse  String?   // JSON response from OpenAI/Claude/Gemini
+  matchedSmsId       String?
+  createdAt          DateTime  @default(now())
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model AbandonedCart {
+  id             String    @id @default(uuid())
+  cartId         String    @unique
+  customerPhone  String
+  customerName   String?
+  cartItems      String    // JSON string of cart items
+  totalAmount    Float?
+  abandonedAt    DateTime  @default(now())
+  reminderSent   Boolean   @default(false)
+  reminderSentAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([customerPhone])
+  @@index([reminderSent])
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String   @default("INFO") // INFO, WARN, ERROR
+  category  String   // e.g. "WUILT_WEBHOOK", "WHATSAPP_BOT", "VISION_AI", "MATCHING_ENGINE", "SMS_INGESTION"
+  message   String
+  metadata  String?  // JSON string
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique // Provided by external platform or hash(payload)
+  source      String   // "WUILT", "WHATSAPP"
+  eventType   String
+  processedAt DateTime @default(now())
+
+  @@index([eventId])
+}
