@@ -50,8 +50,9 @@ mobile_app/.packages
 mobile_app/build/
 mobile_app/android/.gradle/
 mobile_app/android/local.properties
-mobile_app/android/app/build/
 *.apk
+*.pdf
+mobile_app/android/build/
 
 # OS files
 .DS_Store
