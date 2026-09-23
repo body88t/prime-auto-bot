@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Autonomous End-to-End E-Commerce Automation & Payment Verification System",
   "scripts": {
+    "build": "cd backend && npm install && npx prisma generate && npx prisma db push && npm run build",
+    "start": "cd backend && npm start",
     "dev": "npm --prefix backend run dev",
     "dev:backend": "npm --prefix backend run dev",
     "dev:desktop": "npm --prefix desktop_dashboard run dev",
