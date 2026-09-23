@@ -19,6 +19,7 @@ import { WuiltService } from './wuilt.service';
 import { VisionService } from './vision.service';
 import { MatchingEngine } from './matching.service';
 import { broadcastDashboardEvent } from '../controllers/dashboard.controller';
+import { usePrismaAuthState } from './baileys-prisma-auth.service';
 
 export type WhatsAppConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'SCAN_QR' | 'CONNECTED';
 
@@ -60,7 +61,7 @@ export class WhatsAppService {
 
       const baileys = await getBaileys();
       const makeWASocket = baileys.default || baileys.makeWASocket;
-      const { state, saveCreds } = await baileys.useMultiFileAuthState(this.authDir);
+      const { state, saveCreds, clearAuthState } = await usePrismaAuthState();
       const { version } = await baileys.fetchLatestBaileysVersion();
       const DisconnectReason = baileys.DisconnectReason;
 
@@ -123,6 +124,7 @@ export class WhatsAppService {
           } else {
             LoggerService.warn('WHATSAPP_BAILEYS', 'Logged out from WhatsApp. Resetting session credentials.');
             try {
+              await clearAuthState();
               fs.rmSync(this.authDir, { recursive: true, force: true });
             } catch {}
             this.isInitializing = false;

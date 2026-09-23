@@ -1,12 +1,12 @@
 # -----------------------------------------------------------------------------
-# PRIME AUTO BOT - Production Dockerfile (Linux Cloud / Render.com / Railway)
+# PRIME AUTO BOT - Production Dockerfile (Backend Root Context)
+# Compatible with: Koyeb, Zeabur, Back4App, Railway, Render (100% Cloud-Native)
 # -----------------------------------------------------------------------------
 
 # Stage 1: Build TypeScript and Prisma client
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
-# Install build prerequisites
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
@@ -23,7 +23,7 @@ RUN npm run build
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
-# Install Chromium for Puppeteer and Arabic fonts for flawless waybill PDF/PNG generation
+# Install Chromium for Puppeteer and Arabic fonts for flawless waybill generation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     fonts-kacst \
@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure Puppeteer to use the system Chromium installation
+# Configure Puppeteer and Ports
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     NODE_ENV=production \
@@ -47,10 +47,11 @@ RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
 
-# Create persistent storage directories
-RUN mkdir -p storage/baileys_auth storage/waybills storage/receipts logs
+# Create storage and logs with full write permissions
+RUN mkdir -p storage/baileys_auth storage/waybills storage/receipts logs prisma && \
+    chmod -R 777 /app
 
-EXPOSE 3000
+EXPOSE 3000 8080 7860
 
-# Push Prisma schema to SQLite on boot, then start the server
-CMD ["sh", "-c", "npx prisma db push && node dist/server.js"]
+# Apply migrations to Database (PostgreSQL / SQLite) and start server
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/server.js"]

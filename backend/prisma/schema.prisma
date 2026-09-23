@@ -3,8 +3,16 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model WhatsAppSession {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
 }
 
 model Order {

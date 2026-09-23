@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed": "ts-node-dev src/prisma/seed.ts",
+    "migrate:session": "ts-node scripts/migrate-session-to-db.ts",
     "test": "jest --detectOpenHandles --forceExit"
   },
   "dependencies": {

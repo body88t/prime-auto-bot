@@ -139,7 +139,7 @@ export class WaybillService {
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Cairo', sans-serif;
+      font-family: 'Cairo', 'Noto Sans Arabic', 'KacstOne', 'Segoe UI', Tahoma, sans-serif;
       background-color: #f8fafc;
       color: #0f172a;
       display: flex;

@@ -28,8 +28,11 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/storage/waybills', express.static(waybillsDir));
 app.use('/storage/receipts', express.static(receiptsDir));
 
-// Ultra-fast Health Check for 24/7 Keep-Alive (UptimeRobot / Render)
-app.get('/health', (req, res) => {
+// Ultra-fast Health Check for 24/7 Keep-Alive (UptimeRobot / Koyeb / Render)
+app.all('/health', (req, res) => {
+  if (req.method === 'HEAD') {
+    return res.status(200).end();
+  }
   res.status(200).json({
     status: 'OK',
     service: 'PRIME AUTO BOT BACKEND',

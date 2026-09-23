@@ -70,14 +70,19 @@ export class WuiltAutomationService {
     }
 
     // Fallback: launch browser
-    LoggerService.info('WUILT_AUTOMATION', 'Launching headless Chrome with saved user data');
+    const isProduction = process.env.NODE_ENV === 'production' || !process.env.LOCALAPPDATA;
+    LoggerService.info('WUILT_AUTOMATION', `Launching Chrome (headless: ${isProduction}) with saved user data`);
     const userDataDir = path.resolve(__dirname, '../../storage/chrome_profile');
-    return await puppeteer.launch({
-      headless: false,
+    const launchOptions: any = {
+      headless: isProduction ? true : false,
       userDataDir,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
       defaultViewport: null,
-    });
+    };
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+    return await puppeteer.launch(launchOptions);
   }
 
   /**

@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------
 # PRIME AUTO BOT - Universal Production Dockerfile
-# Compatible with: Hugging Face Spaces (100% FREE - NO CREDIT CARD), Render, Railway
+# Compatible with: Koyeb, Zeabur, Back4App, Railway, Render (100% Cloud-Native)
 # -----------------------------------------------------------------------------
 
 # Stage 1: Build TypeScript and Prisma client
@@ -33,11 +33,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure Puppeteer and Ports (7860 for Hugging Face Spaces, 3000 for standard)
+# Configure Puppeteer and Ports
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     NODE_ENV=production \
-    PORT=7860
+    PORT=3000
 
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
@@ -47,11 +47,11 @@ RUN npx prisma generate
 
 COPY --from=builder /app/dist ./dist
 
-# Create storage and logs with full write permissions for non-root containers (HuggingFace UID 1000)
+# Create storage and logs with full write permissions for non-root containers
 RUN mkdir -p storage/baileys_auth storage/waybills storage/receipts logs prisma && \
     chmod -R 777 /app
 
-EXPOSE 7860 3000
+EXPOSE 3000 8080 7860
 
-# Apply migrations to SQLite and start server
-CMD ["sh", "-c", "npx prisma db push && node dist/server.js"]
+# Apply migrations to Database (PostgreSQL / SQLite) and start server
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/server.js"]
