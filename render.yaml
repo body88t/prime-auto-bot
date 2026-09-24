@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: prime-auto-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: ohio
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_8yKc2ehAIWDs@ep-small-smoke-b5ppaymq.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require
+      - key: WUILT_API_KEY
+        value: XDcNe1X458abSUUCoQdgjWpsAOXqHS4UQ8rtHmjPPp8
+      - key: INTERNAL_SMS_SYNC_KEY
+        value: prime_sms_secret_token_8899aabbcc
+      - key: SUPPRESSED_PHONES
+        value: "201157276124"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
