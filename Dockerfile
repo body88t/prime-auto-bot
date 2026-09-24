@@ -37,7 +37,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     NODE_ENV=production \
-    PORT=3000
+    PORT=7860
 
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
