@@ -511,7 +511,7 @@ export class WhatsAppService {
         }
         const name = item.name || item.title || item.product_name || item.productTitle || 'منتج';
         const quantity = Number(item.quantity || item.count || item.qty || 1);
-        const price = Number(item.price ?? item.unit_price ?? item.total_price ?? item.amount ?? 0);
+        const price = Number(item.price?.amount ?? item.price ?? item.unit_price ?? item.total_price ?? item.amount ?? 0);
         return price > 0
           ? `• ${quantity} × ${name} (${price} ج.م)`
           : `• ${quantity} × ${name}`;

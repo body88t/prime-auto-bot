@@ -34,11 +34,29 @@ export class WuiltController {
     }
 
     const payload = req.body || {};
-    const source = payload.data || payload.order || payload;
-    const event = String(payload.event || req.headers['x-wuilt-event'] || req.headers['x-event-name'] || '').trim();
+    const event = String(
+      payload.data?.event ||
+      payload.event ||
+      payload.data?.action ||
+      payload.action ||
+      req.headers['x-wuilt-event'] ||
+      req.headers['x-event-name'] ||
+      ''
+    ).trim();
+
+    const source =
+      payload.data?.payload?.order ||
+      payload.data?.payload?.cart ||
+      payload.data?.order ||
+      payload.data?.cart ||
+      payload.data?.payload ||
+      payload.order ||
+      payload.cart ||
+      (payload.data && typeof payload.data === 'object' && !payload.data.event ? payload.data : null) ||
+      payload;
 
     // 2. Enforce Webhook Idempotency
-    const eventId = payload.id || req.headers['x-wuilt-delivery'];
+    const eventId = payload.id || payload.metaData?.webhookId || req.headers['x-wuilt-delivery'];
     const resolvedEventId = String(eventId || crypto.createHash('sha256').update(rawBody).digest('hex'));
 
     try {
@@ -50,14 +68,6 @@ export class WuiltController {
         LoggerService.info('WUILT_WEBHOOK', `Duplicate webhook event ignored: ${resolvedEventId}`);
         return res.status(200).json({ success: true, message: 'Event already processed' });
       }
-
-      await prisma.webhookEvent.create({
-        data: {
-          eventId: resolvedEventId,
-          source: 'WUILT',
-          eventType: event || 'order.created',
-        },
-      });
     } catch (e: any) {
       LoggerService.warn('WUILT_WEBHOOK', `Idempotency check warning: ${e.message}`);
     }
@@ -67,17 +77,30 @@ export class WuiltController {
     // 3. Route by event type or payload structure
     try {
       const normalizedEvent = event.toLowerCase().replace(/[\s\.\-\/]/g, '_');
-      const isCartEvent =
-        normalizedEvent.includes('abandoned') ||
-        normalizedEvent.includes('cart') ||
-        Boolean(source.cartId || source.cart_id || source.abandonedAt);
 
       const isOrderEvent =
-        !isCartEvent && (
-          normalizedEvent.includes('order') ||
-          normalizedEvent.includes('placed') ||
-          normalizedEvent.includes('create') ||
-          Boolean(source.order_number || source.orderId || source.order_id || source.line_items || source.pricing || (source.id && (source.customer || source.items || source.total || source.total_price)))
+        normalizedEvent.includes('order') ||
+        normalizedEvent.includes('placed') ||
+        normalizedEvent.includes('create') ||
+        normalizedEvent.includes('paid') ||
+        Boolean(
+          source.orderSerial ||
+          source.order_number ||
+          source.orderId ||
+          source.order_id ||
+          source.line_items ||
+          source.items ||
+          source.totalPrice ||
+          source.pricing ||
+          (source._id && (source.customer || source.items || source.total || source.totalPrice || source.receipt)) ||
+          (source.id && (source.customer || source.items || source.total || source.total_price))
+        );
+
+      const isCartEvent =
+        !isOrderEvent && (
+          normalizedEvent.includes('abandoned') ||
+          (normalizedEvent.includes('cart') && !normalizedEvent.includes('order') && !normalizedEvent.includes('placed')) ||
+          Boolean(source.abandonedAt)
         );
 
       if (isOrderEvent) {
@@ -86,12 +109,23 @@ export class WuiltController {
         await WuiltController.handleCartAbandoned(source);
       } else {
         // Fallback: if payload has order items or total or customer, treat as order created
-        if (source && (source.items || source.line_items || source.total || source.total_price || source.order_number || source.id)) {
+        if (source && (source.items || source.line_items || source.totalPrice || source.total || source.total_price || source.orderSerial || source.order_number || source.id || source._id)) {
           await WuiltController.handleOrderCreated(source);
         } else {
           LoggerService.info('WUILT_WEBHOOK', `Webhook ping or unrecognized event received: "${event}"`);
+          return res.status(200).json({ success: true, message: 'Webhook received' });
         }
       }
+
+      try {
+        await prisma.webhookEvent.create({
+          data: {
+            eventId: resolvedEventId,
+            source: 'WUILT',
+            eventType: event || 'order.created',
+          },
+        });
+      } catch {}
 
       return res.status(200).json({ success: true, message: 'Webhook processed successfully' });
     } catch (error: any) {
@@ -105,6 +139,8 @@ export class WuiltController {
    */
   private static async handleOrderCreated(data: any) {
     const wuiltOrderId = String(
+      data.orderSerial ||
+      data._id ||
       data.id ||
       data.order_id ||
       data.orderId ||
@@ -117,22 +153,22 @@ export class WuiltController {
     // Customer Name extraction with rich fallbacks
     const customerName = (
       data.customer?.name ||
-      data.shipping_address?.name ||
       data.shippingAddress?.name ||
+      data.shipping_address?.name ||
+      data.billingAddress?.name ||
+      data.billing_address?.name ||
       `${data.customer?.first_name || data.customer?.firstName || ''} ${data.customer?.last_name || data.customer?.lastName || ''}`.trim() ||
       data.customerName ||
-      data.billing_address?.name ||
-      data.billingAddress?.name ||
       "عميلنا العزيز"
     );
 
     // Phone extraction & sanitization
     const rawPhone = String(
       data.customer?.phone ||
-      data.shipping_address?.phone ||
       data.shippingAddress?.phone ||
-      data.billing_address?.phone ||
+      data.shipping_address?.phone ||
       data.billingAddress?.phone ||
+      data.billing_address?.phone ||
       data.phone ||
       ""
     );
@@ -140,11 +176,14 @@ export class WuiltController {
 
     // Total extraction
     const orderTotal = Number(
-      data.total ||
-      data.total_price ||
-      data.pricing?.total ||
-      data.grand_total ||
-      data.amount ||
+      data.totalPrice?.amount ??
+      data.receipt?.total?.amount ??
+      (typeof data.totalPrice === 'number' ? data.totalPrice : null) ??
+      data.total ??
+      data.total_price ??
+      data.pricing?.total ??
+      data.grand_total ??
+      data.amount ??
       0
     );
 
@@ -158,7 +197,7 @@ export class WuiltController {
     let shippingAddress = 'القاهرة - مصر';
     if (data.shippingAddress) {
       const a = data.shippingAddress;
-      shippingAddress = [a.street, a.city, a.governorate, a.country].filter(Boolean).join(', ') || shippingAddress;
+      shippingAddress = [a.addressLine1, a.addressLine2, a.cityName, a.stateName, a.countryName, a.street, a.city, a.governorate, a.country].filter(Boolean).join(', ') || shippingAddress;
     } else if (data.shipping_address) {
       const a = data.shipping_address;
       shippingAddress = [a.address1, a.address2, a.city, a.province || a.governorate, a.country].filter(Boolean).join(', ') || shippingAddress;
