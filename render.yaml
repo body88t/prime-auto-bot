@@ -8,10 +8,12 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        value: postgresql://neondb_owner:npg_8yKc2ehAIWDs@ep-small-smoke-b5ppaymq.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require
+        value: postgresql://neondb_owner:npg_8yKc2ehAIWDs@ep-small-smoke-b5ppaymq-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=15
       - key: WUILT_API_KEY
         value: XDcNe1X458abSUUCoQdgjWpsAOXqHS4UQ8rtHmjPPp8
       - key: INTERNAL_SMS_SYNC_KEY
+        value: prime_sms_secret_token_8899aabbcc
+      - key: SYNC_SECRET_KEY
         value: prime_sms_secret_token_8899aabbcc
       - key: SUPPRESSED_PHONES
         value: "201157276124"
@@ -19,3 +21,9 @@ services:
         value: production
       - key: PORT
         value: "3000"
+      - key: DEPOSIT_THRESHOLD_EGP
+        value: "190"
+      - key: TARGET_DEPOSIT_EGP
+        value: "200"
+      - key: MATCHING_WINDOW_MINUTES
+        value: "30"

@@ -55,83 +55,85 @@ export class WuiltController {
       (payload.data && typeof payload.data === 'object' && !payload.data.event ? payload.data : null) ||
       payload;
 
-    // 2. Enforce Webhook Idempotency
-    const eventId = payload.id || payload.metaData?.webhookId || req.headers['x-wuilt-delivery'];
-    const resolvedEventId = String(eventId || crypto.createHash('sha256').update(rawBody).digest('hex'));
+    // 2. Respond immediately with 200 OK to Wuilt to prevent timeouts (Point 4 & 32)
+    res.status(200).json({ success: true, message: 'Webhook received' });
 
-    try {
-      const existingEvent = await prisma.webhookEvent.findUnique({
-        where: { eventId: resolvedEventId },
-      });
-
-      if (existingEvent) {
-        LoggerService.info('WUILT_WEBHOOK', `Duplicate webhook event ignored: ${resolvedEventId}`);
-        return res.status(200).json({ success: true, message: 'Event already processed' });
-      }
-    } catch (e: any) {
-      LoggerService.warn('WUILT_WEBHOOK', `Idempotency check warning: ${e.message}`);
-    }
-
-    LoggerService.info('WUILT_WEBHOOK', `Received Wuilt event: "${event || 'direct_payload'}"`, { eventId: resolvedEventId });
-
-    // 3. Route by event type or payload structure
-    try {
-      const normalizedEvent = event.toLowerCase().replace(/[\s\.\-\/]/g, '_');
-
-      const isOrderEvent =
-        normalizedEvent.includes('order') ||
-        normalizedEvent.includes('placed') ||
-        normalizedEvent.includes('create') ||
-        normalizedEvent.includes('paid') ||
-        Boolean(
-          source.orderSerial ||
-          source.order_number ||
-          source.orderId ||
-          source.order_id ||
-          source.line_items ||
-          source.items ||
-          source.totalPrice ||
-          source.pricing ||
-          (source._id && (source.customer || source.items || source.total || source.totalPrice || source.receipt)) ||
-          (source.id && (source.customer || source.items || source.total || source.total_price))
-        );
-
-      const isCartEvent =
-        !isOrderEvent && (
-          normalizedEvent.includes('abandoned') ||
-          (normalizedEvent.includes('cart') && !normalizedEvent.includes('order') && !normalizedEvent.includes('placed')) ||
-          Boolean(source.abandonedAt)
-        );
-
-      if (isOrderEvent) {
-        await WuiltController.handleOrderCreated(source);
-      } else if (isCartEvent) {
-        await WuiltController.handleCartAbandoned(source);
-      } else {
-        // Fallback: if payload has order items or total or customer, treat as order created
-        if (source && (source.items || source.line_items || source.totalPrice || source.total || source.total_price || source.orderSerial || source.order_number || source.id || source._id)) {
-          await WuiltController.handleOrderCreated(source);
-        } else {
-          LoggerService.info('WUILT_WEBHOOK', `Webhook ping or unrecognized event received: "${event}"`);
-          return res.status(200).json({ success: true, message: 'Webhook received' });
-        }
-      }
+    // 3. Process Webhook Asynchronously in the Background
+    setImmediate(async () => {
+      const eventId = payload.id || payload.metaData?.webhookId || req.headers['x-wuilt-delivery'];
+      const resolvedEventId = String(eventId || crypto.createHash('sha256').update(rawBody).digest('hex'));
 
       try {
-        await prisma.webhookEvent.create({
-          data: {
-            eventId: resolvedEventId,
-            source: 'WUILT',
-            eventType: event || 'order.created',
-          },
+        const existingEvent = await prisma.webhookEvent.findUnique({
+          where: { eventId: resolvedEventId },
         });
-      } catch {}
 
-      return res.status(200).json({ success: true, message: 'Webhook processed successfully' });
-    } catch (error: any) {
-      LoggerService.error('WUILT_WEBHOOK', `Error processing Wuilt webhook ${event}: ${error.message}`);
-      return res.status(200).json({ success: true, warning: error.message });
-    }
+        if (existingEvent) {
+          LoggerService.info('WUILT_WEBHOOK', `Duplicate webhook event ignored: ${resolvedEventId}`);
+          return;
+        }
+      } catch (e: any) {
+        LoggerService.warn('WUILT_WEBHOOK', `Idempotency check warning: ${e.message}`);
+      }
+
+      LoggerService.info('WUILT_WEBHOOK', `Received Wuilt event: "${event || 'direct_payload'}"`, { eventId: resolvedEventId });
+
+      try {
+        const normalizedEvent = event.toLowerCase().replace(/[\s\.\-\/]/g, '_');
+
+        const isOrderEvent =
+          normalizedEvent.includes('order') ||
+          normalizedEvent.includes('placed') ||
+          normalizedEvent.includes('create') ||
+          normalizedEvent.includes('paid') ||
+          Boolean(
+            source.orderSerial ||
+            source.order_number ||
+            source.orderId ||
+            source.order_id ||
+            source.line_items ||
+            source.items ||
+            source.totalPrice ||
+            source.pricing ||
+            (source._id && (source.customer || source.items || source.total || source.totalPrice || source.receipt)) ||
+            (source.id && (source.customer || source.items || source.total || source.total_price))
+          );
+
+        const isCartEvent =
+          !isOrderEvent && (
+            normalizedEvent.includes('abandoned') ||
+            (normalizedEvent.includes('cart') && !normalizedEvent.includes('order') && !normalizedEvent.includes('placed')) ||
+            Boolean(source.abandonedAt)
+          );
+
+        if (isOrderEvent) {
+          await WuiltController.handleOrderCreated(source);
+        } else if (isCartEvent) {
+          await WuiltController.handleCartAbandoned(source);
+        } else {
+          if (source && (source.items || source.line_items || source.totalPrice || source.total || source.total_price || source.orderSerial || source.order_number || source.id || source._id)) {
+            await WuiltController.handleOrderCreated(source);
+          } else {
+            LoggerService.info('WUILT_WEBHOOK', `Webhook ping or unrecognized event: "${event}"`);
+            return;
+          }
+        }
+
+        try {
+          await prisma.webhookEvent.create({
+            data: {
+              eventId: resolvedEventId,
+              source: 'WUILT',
+              eventType: event || 'order.created',
+            },
+          });
+        } catch (dbErr: any) {
+          LoggerService.warn('WUILT_WEBHOOK', `Could not record webhook event in DB: ${dbErr.message}`);
+        }
+      } catch (error: any) {
+        LoggerService.error('WUILT_WEBHOOK', `Error in async Wuilt webhook processing ${event}: ${error.message}`);
+      }
+    });
   }
 
   /**
@@ -206,40 +208,56 @@ export class WuiltController {
     }
 
     // 1. Check if order already exists prior to upsert
-    const existingOrder = await prisma.order.findUnique({ where: { wuiltOrderId } });
+    let existingOrder: any = null;
+    try {
+      existingOrder = await prisma.order.findUnique({ where: { wuiltOrderId } });
+    } catch (dbErr: any) {
+      LoggerService.warn('WUILT_WEBHOOK', `Database lookup warning: ${dbErr.message}`);
+    }
 
-    // Save order in database (Database Persistence First)
-    const savedOrder = await prisma.order.upsert({
-      where: { wuiltOrderId },
-      update: {
-        customerName,
-        customerPhone: normalizedPhone,
-        orderTotal,
-        remainingTotal: Math.max(0, orderTotal - (config.targetDepositEgp || 200)),
-        shippingAddress,
-        itemsJson,
-      },
-      create: {
+    // 2. Save order in database (Resilient Persistence)
+    let savedOrder: any = null;
+    try {
+      savedOrder = await prisma.order.upsert({
+        where: { wuiltOrderId },
+        update: {
+          customerName,
+          customerPhone: normalizedPhone,
+          orderTotal,
+          remainingTotal: Math.max(0, orderTotal - (config.targetDepositEgp || 200)),
+          shippingAddress,
+          itemsJson,
+        },
+        create: {
+          wuiltOrderId,
+          customerName,
+          customerPhone: normalizedPhone,
+          orderTotal,
+          depositPaid: 0,
+          remainingTotal: orderTotal,
+          status: ORDER_STATUS.PENDING_PAYMENT,
+          shippingAddress,
+          itemsJson,
+        },
+      });
+      LoggerService.info('WUILT_WEBHOOK', `SUCCESS: Order saved to database with ID: ${savedOrder.id} (#${savedOrder.wuiltOrderId})`);
+    } catch (dbErr: any) {
+      LoggerService.error('WUILT_WEBHOOK', `Database save error (will still proceed with WhatsApp automation): ${dbErr.message}`);
+      savedOrder = {
+        id: `local-${Date.now()}`,
         wuiltOrderId,
         customerName,
         customerPhone: normalizedPhone,
         orderTotal,
-        depositPaid: 0,
-        remainingTotal: orderTotal,
-        status: ORDER_STATUS.PENDING_PAYMENT,
-        shippingAddress,
-        itemsJson,
-      },
-    });
+        createdAt: new Date(),
+      };
+    }
 
-    console.log(`SUCCESS: Order saved to database with ID: ${savedOrder.id} (#${savedOrder.wuiltOrderId})`);
-    LoggerService.info('WUILT_WEBHOOK', `SUCCESS: Order saved to database with ID: ${savedOrder.id} (#${savedOrder.wuiltOrderId})`);
-
-    // 2. Live SSE Broadcast to Desktop Dashboard
+    // 3. Live SSE Broadcast to Desktop Dashboard
     broadcastDashboardEvent('ORDER_CREATED', savedOrder);
     broadcastDashboardEvent('STATS_UPDATE', {});
 
-    // 3. Suppression check (Safety against duplicate messages for manually handled orders)
+    // 4. Suppression check (Safety against duplicate messages for manually handled orders)
     const isSuppressedPhone = config.suppressedPhones.some(
       (sp) => sp && (normalizedPhone.endsWith(sp) || sp.endsWith(normalizedPhone) || normalizedPhone === sp)
     );
@@ -253,11 +271,11 @@ export class WuiltController {
       return savedOrder;
     }
 
-    // 4. If order already existed in DB, avoid resending initial deposit instructions
-    if (existingOrder) {
+    // 5. If order was already confirmed/cancelled in DB, avoid resending initial instructions
+    if (existingOrder && existingOrder.status !== ORDER_STATUS.PENDING_PAYMENT) {
       LoggerService.info(
         'WUILT_WEBHOOK',
-        `Order #${savedOrder.wuiltOrderId} was already registered in the system. Initial deposit instructions skipped to prevent customer annoyance.`
+        `Order #${savedOrder.wuiltOrderId} already processed with status "${existingOrder.status}". Initial deposit instructions skipped.`
       );
       return savedOrder;
     }

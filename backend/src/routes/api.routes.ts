@@ -39,7 +39,18 @@ router.post('/whatsapp/init', WhatsAppController.init);
 // Android SMS Ingestion (Secured via INTERNAL_SMS_SYNC_KEY)
 // -----------------------------------------------------------------------------
 router.post('/sms/incoming', requireInternalApiKey, SmsController.handleIncomingSms);
+router.post('/sms/sync', requireInternalApiKey, SmsController.handleIncomingSms);
 router.get('/sms/ping', SmsController.ping);
+router.get('/sms/sync', (req, res) => res.status(200).json({ status: 'OK', message: 'SMS Sync Endpoint Active' }));
+
+// Bulletproof fallbacks if the user inputs the full endpoint path as the base URL
+router.get('/sms/sync/api/v1/sms/ping', SmsController.ping);
+router.post('/sms/sync/api/v1/sms/incoming', requireInternalApiKey, SmsController.handleIncomingSms);
+router.post('/sms/sync/api/v1/sms/sync', requireInternalApiKey, SmsController.handleIncomingSms);
+router.get('/sms/incoming/api/v1/sms/ping', SmsController.ping);
+router.post('/sms/incoming/api/v1/sms/incoming', requireInternalApiKey, SmsController.handleIncomingSms);
+router.post('/sms/incoming/api/v1/sms/sync', requireInternalApiKey, SmsController.handleIncomingSms);
+
 
 // -----------------------------------------------------------------------------
 // Desktop Dashboard APIs

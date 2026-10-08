@@ -14,7 +14,10 @@ export const config = {
     'file:./dev.db',
   
   // Security
-  internalSmsSyncKey: process.env.INTERNAL_SMS_SYNC_KEY || 'prime_sms_secret_token_8899aabbcc',
+  internalSmsSyncKey:
+    process.env.INTERNAL_SMS_SYNC_KEY ||
+    process.env.SYNC_SECRET_KEY ||
+    'prime_sms_secret_token_8899aabbcc',
   
   // Wuilt
   wuiltApiKey: process.env.WUILT_API_KEY || '',

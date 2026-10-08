@@ -10,6 +10,7 @@ import { QueueService } from './services/queue.service';
 import { WaybillService } from './services/waybill.service';
 import { WhatsAppService } from './services/whatsapp.service';
 import { WhatsAppController } from './controllers/whatsapp.controller';
+import { prisma } from './prisma/client';
 
 const app = express();
 
@@ -29,16 +30,25 @@ app.use('/storage/waybills', express.static(waybillsDir));
 app.use('/storage/receipts', express.static(receiptsDir));
 
 // Ultra-fast Health Check for 24/7 Keep-Alive (UptimeRobot / Koyeb / Render)
-app.all('/health', (req, res) => {
+app.all('/health', async (req, res) => {
   if (req.method === 'HEAD') {
     return res.status(200).end();
   }
+
+  let dbStatus = 'CONNECTED';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (err: any) {
+    dbStatus = 'DISCONNECTED';
+  }
+
   res.status(200).json({
     status: 'OK',
     service: 'PRIME AUTO BOT BACKEND',
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
     env: config.nodeEnv,
+    database: dbStatus,
     whatsappStatus: WhatsAppService.getStatus().status,
   });
 });

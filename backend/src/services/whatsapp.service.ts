@@ -321,6 +321,18 @@ export class WhatsAppService {
     }
     LoggerService.info('WHATSAPP_BOT', `Sending text message to ${recipientJid}`);
 
+    // Wait up to 10 seconds if WhatsApp is reconnecting
+    if (!this.sock || this.status !== 'CONNECTED') {
+      LoggerService.warn('WHATSAPP_BOT', `WhatsApp currently ${this.status}. Waiting up to 10s for connection...`);
+      for (let i = 0; i < 10; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (this.sock && this.status === 'CONNECTED') {
+          LoggerService.info('WHATSAPP_BOT', `WhatsApp connection recovered! Proceeding to dispatch message.`);
+          break;
+        }
+      }
+    }
+
     if (!this.sock || this.status !== 'CONNECTED') {
       LoggerService.warn('WHATSAPP_BOT', `WhatsApp not connected. Message queued/simulated: "${message.substring(0, 50)}..."`);
       return false;

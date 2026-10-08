@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../prisma/client';
 import { isSenderWhitelisted, parseIncomingBankSms } from '../utils/sms-parser.util';
 import { LoggerService } from '../services/logger.service';
+import { MatchingEngine } from '../services/matching.service';
 
 export class SmsController {
   /**
@@ -73,6 +74,31 @@ export class SmsController {
     });
 
     LoggerService.info('SMS_INGESTION', `Bank SMS ingested successfully: ID=${smsRecord.id}, Sender=${sender}, Amount=${finalAmount} EGP, Ref=${finalRefId || 'N/A'}`);
+
+    // Asynchronously trigger automatic matching against pending receipts/orders
+    setImmediate(async () => {
+      try {
+        const pendingScans = await prisma.receiptScan.findMany({
+          where: { status: 'PENDING' },
+          include: { order: true },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        for (const scan of pendingScans) {
+          if (!scan.orderId) continue;
+          const refMatch = Boolean(finalRefId && scan.detectedRefId && finalRefId.toLowerCase() === scan.detectedRefId.toLowerCase());
+          const amountMatch = Math.abs(scan.detectedAmount - finalAmount) < 0.01;
+
+          if (refMatch || amountMatch) {
+            LoggerService.info('SMS_INGESTION', `⚡ Auto-reconciling incoming SMS ${smsRecord.id} with pending scan ${scan.id} for order ${scan.orderId}`);
+            await MatchingEngine.executeFinancialVerification(scan.orderId, smsRecord.id, scan.id, finalAmount);
+            break;
+          }
+        }
+      } catch (reconcileErr: any) {
+        LoggerService.warn('SMS_INGESTION', `Auto-reconcile warning: ${reconcileErr.message}`);
+      }
+    });
 
     return res.status(201).json({
       success: true,

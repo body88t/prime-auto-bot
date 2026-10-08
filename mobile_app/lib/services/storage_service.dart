@@ -11,7 +11,7 @@ class StorageService extends ChangeNotifier {
   static const _keyIsActive = 'is_listener_active';
   static const _keySmsLogs = 'sms_logs';
 
-  String _serverUrl = 'https://overview-suitable-locking-success.trycloudflare.com';
+  String _serverUrl = 'https://prime-auto-bot.onrender.com';
   String _apiKey = 'prime_sms_secret_token_8899aabbcc';
   bool _isListenerActive = true;
   bool _isServerConnected = false;
@@ -29,7 +29,7 @@ class StorageService extends ChangeNotifier {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _serverUrl = prefs.getString(_keyServerUrl) ?? 'https://overview-suitable-locking-success.trycloudflare.com';
+    _serverUrl = prefs.getString(_keyServerUrl) ?? 'https://prime-auto-bot.onrender.com';
     _apiKey = prefs.getString(_keyApiKey) ?? 'prime_sms_secret_token_8899aabbcc';
     _isListenerActive = prefs.getBool(_keyIsActive) ?? true;
 

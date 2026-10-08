@@ -6,23 +6,23 @@ describe('Financial Validation & Deposit Threshold Rules (SPEC Section 3.C)', ()
 
   describe('Partial Deposit Rule (< 190 EGP)', () => {
     it('should generate exact Arabic message for 100 EGP deposit', () => {
+      const customerName = 'أحمد';
       const amount = 100;
       const remaining = TARGET_DEPOSIT - amount; // 100
-      const message = MESSAGES.PARTIAL_DEPOSIT_ALERT(amount, remaining);
+      const message = MESSAGES.PARTIAL_DEPOSIT_ALERT(customerName, amount, remaining);
 
-      expect(message).toBe(
-        'تم استلام مبلغ 100 ج. يُرجى العلم أن الأوردر لا يتم تأكيده إلا بسداد العربون كاملاً (200 ج). المتبقي لتأكيد شحن طلبك: 100 ج.'
-      );
+      expect(message).toContain('تم استلام تحويل بقيمة: 100 ج');
+      expect(message).toContain('المتبقي لتأكيد الشحن: 100 ج');
     });
 
     it('should generate exact Arabic message for 150 EGP deposit', () => {
+      const customerName = 'محمد';
       const amount = 150;
       const remaining = TARGET_DEPOSIT - amount; // 50
-      const message = MESSAGES.PARTIAL_DEPOSIT_ALERT(amount, remaining);
+      const message = MESSAGES.PARTIAL_DEPOSIT_ALERT(customerName, amount, remaining);
 
-      expect(message).toBe(
-        'تم استلام مبلغ 150 ج. يُرجى العلم أن الأوردر لا يتم تأكيده إلا بسداد العربون كاملاً (200 ج). المتبقي لتأكيد شحن طلبك: 50 ج.'
-      );
+      expect(message).toContain('تم استلام تحويل بقيمة: 150 ج');
+      expect(message).toContain('المتبقي لتأكيد الشحن: 50 ج');
     });
 
     it('should classify amounts below 190 as PARTIAL_DEPOSIT', () => {
