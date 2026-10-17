@@ -2,13 +2,13 @@ import axios from 'axios';
 import { DashboardStats, IncomingSms, Order, SystemLog } from '../types';
 
 const STORAGE_KEY = 'PRIME_API_BASE_URL';
-const DEFAULT_URL = 'https://primeautobot-1480cm0m.b4a.run/api/v1';
+const DEFAULT_URL = 'https://prime-auto-bot.primeauto-eg.workers.dev/api/v1';
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && !saved.includes('trycloudflare.com')) return saved;
-    if (saved && saved.includes('trycloudflare.com')) {
+    if (saved && !saved.includes('trycloudflare.com') && !saved.includes('b4a.run')) return saved;
+    if (saved && (saved.includes('trycloudflare.com') || saved.includes('b4a.run'))) {
       localStorage.setItem(STORAGE_KEY, DEFAULT_URL);
     }
   }

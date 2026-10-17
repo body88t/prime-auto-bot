@@ -79,10 +79,10 @@ export const SettingsView: React.FC = () => {
             <span className="text-slate-400">روابط سريعة:</span>
             <button
               type="button"
-              onClick={() => handlePresetClick('https://primeautobot-1480cm0m.b4a.run')}
+              onClick={() => handlePresetClick('https://prime-auto-bot.primeauto-eg.workers.dev')}
               className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg font-mono transition"
             >
-              ☁️ السيرفر السحابي الدائم (Back4App Cloud)
+              ☁️ السيرفر السحابي الدائم (Cloudflare Cloud)
             </button>
             <button
               type="button"

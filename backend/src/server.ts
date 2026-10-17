@@ -74,42 +74,65 @@ const server = app.listen(config.port, async () => {
   WaybillService.initializeStorage();
   WhatsAppService.initialize();
 
-  // Autonomous Cloud Keep-Alive & 45-Minute Zero-Downtime Container Renewal
-  if (config.nodeEnv === 'production') {
-    const cloudHealthUrl = process.env.CLOUD_HEALTH_URL || 'https://primeautobot-1480cm0m.b4a.run/health';
-    const b4aCookie =
-      process.env.B4A_SESSION_COOKIE ||
-      'connect.sid=s%3A4wI4qDfGabcN_MQxzQQWaeTfPQvDJBqs.H48lW%2B9OSl07XkOOiknoT%2BzbN1t1AW5SwltXHpn%2FXhw';
-    const serviceEnvId = process.env.B4A_SERVICE_ENV_ID || '5db65208-53fd-4bae-8e40-c7e872ef26b8';
+  // Real-time Neon DB Queue Poller (processes orders & carts ingested by Cloudflare Worker Gateway)
+  let isPollingDb = false;
+  setInterval(async () => {
+    if (isPollingDb) return;
+    if (WhatsAppService.getStatus().status !== 'CONNECTED') return;
+    isPollingDb = true;
+    try {
+      // 1. Dispatch WhatsApp instructions for any newly ingested Order from Cloudflare Worker
+      const pendingOrders = await prisma.order.findMany({
+        where: { notes: 'PENDING_WA_DISPATCH', status: 'PENDING_PAYMENT' },
+        take: 10,
+      });
 
-    // Self-ping every 3 minutes
-    setInterval(async () => {
-      try {
-        await fetch(cloudHealthUrl);
-      } catch {}
-    }, 3 * 60 * 1000);
-
-    // Proactively trigger zero-downtime replacement deployment at 45 minutes of uptime
-    setTimeout(async () => {
-      try {
-        LoggerService.info('BOOTSTRAP', '🔄 Triggering proactive 45-minute zero-downtime cloud container renewal...');
-        await fetch('https://api.containers.back4app.com/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: b4aCookie,
-            Origin: 'https://containers.back4app.com',
-            Referer: 'https://containers.back4app.com/',
-          },
-          body: JSON.stringify({
-            query: `mutation { triggerManualDeployment(serviceEnvironmentId: "${serviceEnvId}") { id status } }`,
-          }),
+      for (const ord of pendingOrders) {
+        await prisma.order.update({
+          where: { id: ord.id },
+          data: { notes: 'WA_DISPATCHED' },
         });
-      } catch (err: any) {
-        LoggerService.warn('BOOTSTRAP', `Self-renewal warning: ${err.message}`);
+
+        const normalizedPhone = WhatsAppService.normalizePhoneNumber(ord.customerPhone);
+        const isSuppressed = config.suppressedPhones.some(
+          (sp) => sp && (normalizedPhone.endsWith(sp) || sp.endsWith(normalizedPhone) || normalizedPhone === sp)
+        );
+        if (isSuppressed || !normalizedPhone) {
+          LoggerService.warn('WHATSAPP_BOT', `🛡️ Skipping WA dispatch for suppressed/empty phone on order #${ord.wuiltOrderId}`);
+          continue;
+        }
+
+        let parsedItems: any[] = [];
+        try {
+          parsedItems = ord.itemsJson ? JSON.parse(ord.itemsJson) : [];
+        } catch {}
+
+        const formattedItems = WhatsAppService.formatOrderItems(parsedItems);
+        const formattedDate = WhatsAppService.formatOrderDateTime(ord.createdAt);
+        const { MESSAGES } = await import('./utils/constants');
+        const msg = MESSAGES.ORDER_CREATED_INSTRUCTION(ord.customerName, formattedItems, formattedDate);
+        await WhatsAppService.sendTextMessage(normalizedPhone, msg);
+        LoggerService.info('WHATSAPP_BOT', `✅ Dispatched initial WhatsApp instructions for order #${ord.wuiltOrderId} (${normalizedPhone})`);
       }
-    }, 45 * 60 * 1000);
-  }
+
+      // 2. Dispatch WhatsApp reminder for any unsent AbandonedCart
+      const pendingCarts = await prisma.abandonedCart.findMany({
+        where: { reminderSent: false },
+        take: 5,
+      });
+      for (const cart of pendingCarts) {
+        await QueueService.processAbandonedCartReminder({
+          cartId: cart.cartId,
+          customerPhone: cart.customerPhone,
+          customerName: cart.customerName || 'عزيزنا العميل',
+        });
+      }
+    } catch (err: any) {
+      // Ignore transient DB poll errors
+    } finally {
+      isPollingDb = false;
+    }
+  }, 3000);
 });
 
 // Graceful shutdown
