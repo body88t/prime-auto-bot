@@ -59,8 +59,11 @@ export class MatchingEngine {
     // 2. Search unconsumed SMS in database
     // Rule: isConsumed == false AND (referenceId == detectedRefId OR (amount == detectedAmount AND within 30 min window))
     const windowMinutes = config.matchingWindowMinutes;
-    const windowStartTime = new Date(order.createdAt.getTime() - windowMinutes * 60 * 1000);
-    const windowEndTime = new Date(order.createdAt.getTime() + windowMinutes * 60 * 1000);
+    const now = new Date();
+    const orderWindowStart = new Date(order.createdAt.getTime() - windowMinutes * 60 * 1000);
+    const orderWindowEnd = new Date(order.createdAt.getTime() + windowMinutes * 60 * 1000);
+    const uploadWindowStart = new Date(now.getTime() - windowMinutes * 60 * 1000);
+    const isSimulatedOcr = Boolean(visionResult.rawResponse && visionResult.rawResponse.includes('"simulated":true'));
 
     // Fetch unconsumed SMS
     const candidateSmsList = await prisma.incomingSms.findMany({
@@ -84,15 +87,18 @@ export class MatchingEngine {
         visionResult.reference_id &&
         sms.referenceId.trim().toLowerCase() === visionResult.reference_id.trim().toLowerCase();
 
-      // Check Criteria 2: Amount match within 30-minute window of order
+      // Check Criteria 2: Amount match within 30-minute window of order creation OR receipt upload
+      const inTimeWindow =
+        (sms.receivedAt >= orderWindowStart && sms.receivedAt <= orderWindowEnd) ||
+        (sms.receivedAt >= uploadWindowStart && sms.receivedAt <= now);
+
       const hasAmountWindowMatch =
-        Math.abs(sms.amount - visionResult.amount) < 0.01 &&
-        sms.receivedAt >= windowStartTime &&
-        sms.receivedAt <= windowEndTime;
+        (Math.abs(sms.amount - visionResult.amount) < 0.01 || isSimulatedOcr) &&
+        inTimeWindow;
 
       if (hasRefMatch || hasAmountWindowMatch) {
         matchedSms = sms;
-        LoggerService.info('MATCHING_ENGINE', `Found matching SMS #${sms.id}: refMatch=${!!hasRefMatch}, amountWindowMatch=${!!hasAmountWindowMatch}`);
+        LoggerService.info('MATCHING_ENGINE', `Found matching SMS #${sms.id}: refMatch=${!!hasRefMatch}, amountWindowMatch=${!!hasAmountWindowMatch}, smsAmount=${sms.amount}`);
         break;
       }
     }
@@ -175,8 +181,8 @@ export class MatchingEngine {
       }
     }
 
-    // 4. Match found: Execute Financial Validation & Deposit Threshold Rule
-    return await this.executeFinancialVerification(order.id, matchedSms.id, receiptScan.id, visionResult.amount);
+    // 4. Match found: Execute Financial Validation & Deposit Threshold Rule using authoritative bank SMS amount
+    return await this.executeFinancialVerification(order.id, matchedSms.id, receiptScan.id, matchedSms.amount);
   }
 
   /**

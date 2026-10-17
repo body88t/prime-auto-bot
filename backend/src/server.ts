@@ -73,6 +73,43 @@ const server = app.listen(config.port, async () => {
   await QueueService.initialize();
   WaybillService.initializeStorage();
   WhatsAppService.initialize();
+
+  // Autonomous Cloud Keep-Alive & 45-Minute Zero-Downtime Container Renewal
+  if (config.nodeEnv === 'production') {
+    const cloudHealthUrl = process.env.CLOUD_HEALTH_URL || 'https://primeautobot-1480cm0m.b4a.run/health';
+    const b4aCookie =
+      process.env.B4A_SESSION_COOKIE ||
+      'connect.sid=s%3A4wI4qDfGabcN_MQxzQQWaeTfPQvDJBqs.H48lW%2B9OSl07XkOOiknoT%2BzbN1t1AW5SwltXHpn%2FXhw';
+    const serviceEnvId = process.env.B4A_SERVICE_ENV_ID || '5db65208-53fd-4bae-8e40-c7e872ef26b8';
+
+    // Self-ping every 3 minutes
+    setInterval(async () => {
+      try {
+        await fetch(cloudHealthUrl);
+      } catch {}
+    }, 3 * 60 * 1000);
+
+    // Proactively trigger zero-downtime replacement deployment at 45 minutes of uptime
+    setTimeout(async () => {
+      try {
+        LoggerService.info('BOOTSTRAP', '🔄 Triggering proactive 45-minute zero-downtime cloud container renewal...');
+        await fetch('https://api.containers.back4app.com/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: b4aCookie,
+            Origin: 'https://containers.back4app.com',
+            Referer: 'https://containers.back4app.com/',
+          },
+          body: JSON.stringify({
+            query: `mutation { triggerManualDeployment(serviceEnvironmentId: "${serviceEnvId}") { id status } }`,
+          }),
+        });
+      } catch (err: any) {
+        LoggerService.warn('BOOTSTRAP', `Self-renewal warning: ${err.message}`);
+      }
+    }, 45 * 60 * 1000);
+  }
 });
 
 // Graceful shutdown

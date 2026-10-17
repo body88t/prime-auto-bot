@@ -15,8 +15,7 @@ async function triggerB4ARedeploy() {
         Referer: 'https://containers.back4app.com/',
       },
       body: JSON.stringify({
-        query: `mutation ($id: UUID!) { triggerManualDeployment(serviceEnvironmentId: $id) { id status } }`,
-        variables: { id: SERVICE_ENV_ID },
+        query: `mutation { triggerManualDeployment(serviceEnvironmentId: "${SERVICE_ENV_ID}") { id status } }`,
       }),
     });
     const data = await res.json();
@@ -27,6 +26,11 @@ async function triggerB4ARedeploy() {
 }
 
 async function runKeepAlive() {
+  if (process.argv.includes('--redeploy')) {
+    await triggerB4ARedeploy();
+    return;
+  }
+
   try {
     const res = await fetch(TARGET_URL);
     const text = await res.text();

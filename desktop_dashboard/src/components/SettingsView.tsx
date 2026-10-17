@@ -1,9 +1,114 @@
-import React from 'react';
-import { Settings, Shield, Key, Sliders, Server, Smartphone, ExternalLink, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, Shield, Key, Sliders, Server, Smartphone, ExternalLink, CheckCircle, RefreshCw, AlertCircle } from 'lucide-react';
+import { api, getApiBaseUrl, setApiBaseUrl } from '../services/api';
 
 export const SettingsView: React.FC = () => {
+  const currentUrl = getApiBaseUrl().replace(/\/api\/v1$/, '');
+  const [serverUrl, setServerUrl] = useState(currentUrl);
+  const [pingStatus, setPingStatus] = useState<{ testing: boolean; message?: string; ok?: boolean } | null>(null);
+
+  const handleTestAndSave = async (urlToTest?: string) => {
+    const target = urlToTest || serverUrl;
+    setPingStatus({ testing: true });
+    const result = await api.pingServer(target);
+    setPingStatus({ testing: false, ok: result.ok, message: result.message });
+    if (result.ok) {
+      setApiBaseUrl(target);
+      setServerUrl(target.replace(/\/api\/v1$/, ''));
+      setTimeout(() => {
+        window.location.reload();
+      }, 800);
+    }
+  };
+
+  const handlePresetClick = (presetUrl: string) => {
+    setServerUrl(presetUrl);
+    handleTestAndSave(presetUrl);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Active Server Connection Card */}
+      <div className="bg-slate-900/90 border border-blue-500/30 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20">
+              <Server className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">اتصال السيرفر (Backend Server Gateway)</h2>
+              <p className="text-xs text-slate-400">حدد رابط السيرفر الذي يتصل به برنامج الداش بورد (سيرفر الهاتف أو المحلي)</p>
+            </div>
+          </div>
+          <span className="text-xs px-2.5 py-1 rounded-full font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30 font-bold">
+            Live Gateway
+          </span>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
+              placeholder="https://your-tunnel.trycloudflare.com or http://localhost:3000"
+              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-blue-500 transition"
+              dir="ltr"
+            />
+            <button
+              onClick={() => handleTestAndSave()}
+              disabled={pingStatus?.testing}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 disabled:opacity-50"
+            >
+              {pingStatus?.testing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>جاري الفحص...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>اختبار وحفظ</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Quick Presets */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-400">روابط سريعة:</span>
+            <button
+              type="button"
+              onClick={() => handlePresetClick('https://primeautobot-1480cm0m.b4a.run')}
+              className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg font-mono transition"
+            >
+              ☁️ السيرفر السحابي الدائم (Back4App Cloud)
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePresetClick('http://localhost:3000')}
+              className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg font-mono transition"
+            >
+              💻 سيرفر محلي (localhost:3000)
+            </button>
+          </div>
+
+          {/* Feedback Alert */}
+          {pingStatus && !pingStatus.testing && (
+            <div
+              className={`p-3 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+                pingStatus.ok
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+              }`}
+            >
+              {pingStatus.ok ? <CheckCircle className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+              <span>{pingStatus.message}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Endpoints Card */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
         <div className="flex items-center gap-3 mb-5">
@@ -12,7 +117,7 @@ export const SettingsView: React.FC = () => {
           </div>
           <div>
             <h2 className="text-base font-bold text-white">عناوين الربط ونقاط النهاية (API Endpoints)</h2>
-            <p className="text-xs text-slate-400">عناوين الويب هوك لإدخالها في إعدادات منصة ويلت (Wuilt) وواتساب للأعمال</p>
+            <p className="text-xs text-slate-400">عناوين الويب هوك لإدخالها في إعدادات منصة ويلت (Wuilt) وتطبيق الـ SMS</p>
           </div>
         </div>
 
@@ -22,8 +127,8 @@ export const SettingsView: React.FC = () => {
               <span>رابط استقبال طلبات وسلات ويلت (Wuilt Webhook):</span>
               <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono">POST</span>
             </div>
-            <div className="text-blue-400 select-all p-2 bg-slate-900 rounded border border-slate-800 text-[11px]">
-              http://your-domain.com/api/v1/webhooks/wuilt
+            <div className="text-blue-400 select-all p-2 bg-slate-900 rounded border border-slate-800 text-[11px]" dir="ltr">
+              {serverUrl}/api/v1/webhooks/wuilt
             </div>
             <div className="text-[11px] text-slate-500 font-sans">الأحداث المدعومة: order.created, cart.abandoned</div>
           </div>
@@ -33,8 +138,8 @@ export const SettingsView: React.FC = () => {
               <span>رابط ويب هوك واتساب (WhatsApp Webhook):</span>
               <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-mono">GET / POST</span>
             </div>
-            <div className="text-emerald-400 select-all p-2 bg-slate-900 rounded border border-slate-800 text-[11px]">
-              http://your-domain.com/api/v1/webhooks/whatsapp
+            <div className="text-emerald-400 select-all p-2 bg-slate-900 rounded border border-slate-800 text-[11px]" dir="ltr">
+              {serverUrl}/api/v1/webhooks/whatsapp
             </div>
             <div className="text-[11px] text-slate-500 font-sans">رمز التحقق الافتراضي: prime_wa_webhook_verify_token</div>
           </div>
@@ -44,10 +149,10 @@ export const SettingsView: React.FC = () => {
               <span>رابط مزامنة رسائل تطبيق أندرويد (Android SMS Ingestion Gateway):</span>
               <span className="text-[10px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded font-mono">POST</span>
             </div>
-            <div className="text-purple-400 select-all p-2 bg-slate-900 rounded border border-slate-800 text-[11px]">
-              http://your-domain.com/api/v1/sms/incoming
+            <div className="text-purple-400 select-all p-2 bg-slate-900 rounded border border-slate-800 text-[11px]" dir="ltr">
+              {serverUrl}/api/v1/sms/incoming
             </div>
-            <div className="text-[11px] text-slate-500 font-sans">مؤمن بواسطة الترويسة x-api-key: INTERNAL_SMS_SYNC_KEY</div>
+            <div className="text-[11px] text-slate-500 font-sans">مؤمن بواسطة الترويسة x-api-key: prime_sms_secret_token_8899aabbcc</div>
           </div>
         </div>
       </div>
@@ -98,29 +203,16 @@ export const SettingsView: React.FC = () => {
             <Shield className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white">قائمة الجهات المعتمدة (Authorized Whitelist)</h2>
-            <p className="text-xs text-slate-400">المرسلون المقبولون حصراً لمنع الاحتيال أو تزوير الرسائل الشخصية</p>
+            <h2 className="text-base font-bold text-white">المرسلون المعتمدون للرسائل البنكية (SMS Whitelist)</h2>
+            <p className="text-xs text-slate-400">مرسلو الرسائل القصيرة المقبولون حصراً لدى خوارزمية الفرز</p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs">
-          {[
-            'VF-Cash (فودافون كاش)',
-            'InstaPay (إنستاباي - شبكة المدفوعات اللحظية)',
-            'OrangeCash (أورانج كاش)',
-            'EtisalatCash / e& money (اتصالات كاش)',
-            'WEPay (وي باي)',
-            'CIB (البنك التجاري الدولي)',
-            'Banque Misr (بنك مصر)',
-            'NBE (البنك الأهلي المصري)',
-            'QNB ALAHLI (بنك قطر الوطني)',
-          ].map((item, idx) => (
-            <span
-              key={idx}
-              className="px-3 py-1.5 bg-slate-950 text-slate-300 rounded-xl border border-slate-800 font-medium flex items-center gap-1.5"
-            >
+          {['Vodafone', 'VF-Cash', 'InstaPay', 'Orange', 'OrangeCash', 'Etisalat', 'EtisalatCash', 'WE', 'WECash', 'CIB', 'NBE', 'BM'].map((sender) => (
+            <span key={sender} className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 font-mono flex items-center gap-1.5">
               <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-              {item}
+              {sender}
             </span>
           ))}
         </div>
