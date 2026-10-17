@@ -112,18 +112,17 @@ export const MESSAGES = {
    * قالب رسالة السلة المتروكة (Abandoned Cart)
    */
   ABANDONED_CART_RECOVERY: (
-    customerName: string,
-    cartItemsFormatted: string,
-    cartRecoveryUrl: string
+    _customerName?: string,
+    _cartItemsFormatted?: string,
+    _cartRecoveryUrl?: string
   ) =>
-    `أهلاً ${customerName}! 👋\n\n` +
-    `لاحظنا إنك مكملتش طلبك الأخير:\n` +
-    `${cartItemsFormatted} 🛒\n\n` +
-    `المنتجات لسه محجوزة لك، وتقدر تكمل طلبك في ثواني من الرابط التالي:\n` +
-    `🔗 ${cartRecoveryUrl}\n\n` +
-    `🚚 الشحن متاح لجميع المحافظات خلال 3 إلى 7 أيام عمل.\n` +
-    `لو واجهتك أي مشكلة أثناء الدفع أو محتاج استفسار، رد علينا هنا مباشرة وهنساعدك فوراً 💬\n` +
-    `💙 PRIME AUTO في خدمتك`,
+    `عزيزنا العميل ،\n` +
+    `يسرُّنا إعلامكم بأن المنتج الذي اخترتموه يزال متوفراً لدينا في متجر PRIME AUTO 🛒 ..\n\n` +
+    `يمكنكم إتمام الطلب من خلال موقعنا الإلكتروني 🌐.\n\n` +
+    `وفي حال وجود أي استفسار، يسعدنا فريق الدعم التواصل معكم.\n\n` +
+    `primeautoeg.com\n\n` +
+    `مع تحياتنا،\n` +
+    `فريق PRIME AUTO 💙 .`,
 
   /**
    * رسالة تأكيد إلغاء الطلب عند الرد بـ 2

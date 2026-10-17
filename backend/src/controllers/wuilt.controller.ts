@@ -303,11 +303,13 @@ export class WuiltController {
    * Handles cart.abandoned event.
    */
   private static async handleCartAbandoned(data: any) {
-    const cartId = String(data.id || data.cartId || data.cart_id || data.token || `cart_${Date.now()}`);
+    const cartId = String(data.id || data._id || data.cartId || data.cart_id || data.token || `cart_${Date.now()}`);
     const rawPhone = String(
       data.customer?.phone ||
       data.shipping_address?.phone ||
       data.shippingAddress?.phone ||
+      data.billingAddress?.phone ||
+      data.billing_address?.phone ||
       data.phone ||
       ""
     );
@@ -317,9 +319,18 @@ export class WuiltController {
       data.customerName ||
       'عزيزنا العميل'
     );
-    const cartItemsList = Array.isArray(data.items) ? data.items : (Array.isArray(data.line_items) ? data.line_items : []);
+    const cartItemsList = Array.isArray(data.items)
+      ? data.items
+      : (Array.isArray(data.line_items) ? data.line_items : (Array.isArray(data.products) ? data.products : []));
     const cartItems = JSON.stringify(cartItemsList);
-    const totalAmount = Number(data.total_price || data.total || data.pricing?.total || 0);
+    const totalAmount = Number(
+      data.totalPrice?.amount ??
+      data.receipt?.total?.amount ??
+      data.total_price ??
+      data.total ??
+      data.pricing?.total ??
+      0
+    );
 
     if (!rawPhone) {
       LoggerService.info('WUILT_WEBHOOK', `Abandoned cart ${cartId} has no customer phone. Skipping reminder.`);
@@ -328,29 +339,46 @@ export class WuiltController {
 
     const normalizedPhone = WhatsAppService.normalizePhoneNumber(rawPhone);
 
-    // Save AbandonedCart record
-    await prisma.abandonedCart.upsert({
-      where: { cartId },
-      update: {
-        customerPhone: normalizedPhone,
-        customerName,
-        cartItems,
-        totalAmount,
-      },
-      create: {
-        cartId,
-        customerPhone: normalizedPhone,
-        customerName,
-        cartItems,
-        totalAmount,
-        abandonedAt: new Date(),
-        reminderSent: false,
-      },
+    // Save AbandonedCart record with isolated error handling
+    try {
+      await prisma.abandonedCart.upsert({
+        where: { cartId },
+        update: {
+          customerPhone: normalizedPhone,
+          customerName,
+          cartItems,
+          totalAmount,
+        },
+        create: {
+          cartId,
+          customerPhone: normalizedPhone,
+          customerName,
+          cartItems,
+          totalAmount,
+          abandonedAt: new Date(),
+          reminderSent: false,
+        },
+      });
+    } catch (dbErr: any) {
+      LoggerService.warn('WUILT_WEBHOOK', `Database save warning for abandoned cart ${cartId}: ${dbErr.message}`);
+    }
+
+    // Check suppression list
+    const isSuppressedPhone = config.suppressedPhones.some(
+      (sp) => sp && (normalizedPhone.endsWith(sp) || sp.endsWith(normalizedPhone) || normalizedPhone === sp)
+    );
+    if (isSuppressedPhone) {
+      LoggerService.warn('WUILT_WEBHOOK', `🛡️ Abandoned cart ${cartId} (Phone: ${normalizedPhone}) is in SUPPRESSION LIST. Skipping WhatsApp reminder.`);
+      return;
+    }
+
+    LoggerService.info('WUILT_WEBHOOK', `Abandoned cart ${cartId} saved. Dispatching recovery reminder.`);
+
+    // Process recovery reminder
+    await QueueService.processAbandonedCartReminder({
+      cartId,
+      customerPhone: normalizedPhone,
+      customerName,
     });
-
-    LoggerService.info('WUILT_WEBHOOK', `Abandoned cart ${cartId} saved. Scheduling 2-hour recovery reminder.`);
-
-    // Enqueue 2-hour delayed recovery job via QueueService
-    await QueueService.scheduleAbandonedCartReminder(cartId, normalizedPhone, customerName);
   }
 }
